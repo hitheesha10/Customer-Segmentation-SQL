@@ -679,8 +679,6 @@ queries/
 
 # Project Progress After Day 2
 
-## Current Project Level: 8.5/10
-
 ### Improvements Added
 - Advanced relational SQL
 - Multi-table analytics
@@ -691,3 +689,485 @@ queries/
 - Customer satisfaction analysis
 
 The project now demonstrates real-world e-commerce analytics and business intelligence querying techniques commonly used in analytics-focused roles.
+
+# Day 3 — Advanced Customer Segmentation & RFM Analytics
+
+## Overview
+
+On Day 3, the project was upgraded with advanced customer intelligence and marketing analytics techniques using SQL.
+
+The focus of this phase was:
+- RFM Analysis
+- Customer Segmentation
+- Customer Lifetime Value (CLV)
+- Percentile Analysis
+- SQL Views
+- Advanced Window Functions
+
+These techniques are commonly used in:
+- E-commerce analytics
+- CRM systems
+- Marketing analytics
+- Customer retention analysis
+- Business intelligence platforms
+
+---
+
+# 1. RFM Analysis
+
+## What is RFM?
+
+RFM stands for:
+
+| Metric | Meaning |
+|---|---|
+| Recency | How recently a customer purchased |
+| Frequency | How often the customer purchases |
+| Monetary | How much the customer spends |
+
+RFM analysis is widely used to identify:
+- loyal customers
+- inactive customers
+- high-value customers
+- churn-risk customers
+
+---
+
+## Base RFM Query
+
+```sql
+SELECT
+    c.customer_unique_id,
+
+    MAX(o.order_purchase_timestamp)
+    AS last_purchase_date,
+
+    COUNT(o.order_id)
+    AS frequency,
+
+    ROUND(SUM(p.payment_value),2)
+    AS monetary
+
+FROM customers c
+
+INNER JOIN orders o
+ON c.customer_id = o.customer_id
+
+INNER JOIN payments p
+ON o.order_id = p.order_id
+
+GROUP BY c.customer_unique_id;
+```
+
+---
+
+## Recency Analysis
+
+```sql
+SELECT
+    c.customer_unique_id,
+
+    CURRENT_DATE -
+    MAX(DATE(o.order_purchase_timestamp))
+    AS recency_days
+
+FROM customers c
+
+INNER JOIN orders o
+ON c.customer_id = o.customer_id
+
+GROUP BY c.customer_unique_id;
+```
+
+### Purpose
+- Identify active customers
+- Detect inactive customers
+- Measure customer engagement
+
+### Business Insight
+Customers with lower recency values are more actively engaged with the platform.
+
+---
+
+# 2. Advanced RFM Scoring
+
+Window Functions and NTILE() were used to score customers based on:
+- recency
+- frequency
+- monetary value
+
+---
+
+## RFM Scoring Query
+
+```sql
+WITH rfm_base AS (
+
+    SELECT
+        c.customer_unique_id,
+
+        CURRENT_DATE -
+        MAX(DATE(o.order_purchase_timestamp))
+        AS recency,
+
+        COUNT(o.order_id)
+        AS frequency,
+
+        ROUND(SUM(p.payment_value),2)
+        AS monetary
+
+    FROM customers c
+
+    INNER JOIN orders o
+    ON c.customer_id = o.customer_id
+
+    INNER JOIN payments p
+    ON o.order_id = p.order_id
+
+    GROUP BY c.customer_unique_id
+)
+
+SELECT
+    customer_unique_id,
+
+    recency,
+    frequency,
+    monetary,
+
+    NTILE(5)
+    OVER(ORDER BY recency ASC)
+    AS recency_score,
+
+    NTILE(5)
+    OVER(ORDER BY frequency DESC)
+    AS frequency_score,
+
+    NTILE(5)
+    OVER(ORDER BY monetary DESC)
+    AS monetary_score
+
+FROM rfm_base;
+```
+
+---
+
+## SQL Concepts Used
+
+- Common Table Expressions (CTEs)
+- Window Functions
+- NTILE()
+- Aggregation
+- Multi-table JOINs
+
+---
+
+# 3. Customer Segmentation
+
+Customers were segmented into different groups using CASE WHEN conditions.
+
+---
+
+## Customer Segmentation Query
+
+```sql
+WITH rfm_scores AS (
+
+    SELECT
+        c.customer_unique_id,
+
+        NTILE(5)
+        OVER(
+            ORDER BY
+            COUNT(o.order_id) DESC
+        ) AS frequency_score,
+
+        NTILE(5)
+        OVER(
+            ORDER BY
+            SUM(p.payment_value) DESC
+        ) AS monetary_score
+
+    FROM customers c
+
+    INNER JOIN orders o
+    ON c.customer_id = o.customer_id
+
+    INNER JOIN payments p
+    ON o.order_id = p.order_id
+
+    GROUP BY c.customer_unique_id
+)
+
+SELECT
+    customer_unique_id,
+
+    frequency_score,
+    monetary_score,
+
+    CASE
+
+        WHEN frequency_score >= 4
+        AND monetary_score >= 4
+        THEN 'Champions'
+
+        WHEN frequency_score >= 3
+        AND monetary_score >= 3
+        THEN 'Loyal Customers'
+
+        WHEN frequency_score <= 2
+        AND monetary_score <= 2
+        THEN 'At Risk'
+
+        ELSE 'Potential Loyalists'
+
+    END AS customer_segment
+
+FROM rfm_scores;
+```
+
+---
+
+# Customer Segments Created
+
+| Segment | Meaning |
+|---|---|
+| Champions | High-value active customers |
+| Loyal Customers | Frequent customers |
+| Potential Loyalists | Growing customers |
+| At Risk | Low-engagement customers |
+
+---
+
+## Business Use Cases
+
+Used in:
+- customer retention
+- personalized marketing
+- loyalty programs
+- churn prediction
+- customer targeting
+
+---
+
+# 4. Customer Lifetime Value (CLV)
+
+Customer Lifetime Value analysis was performed to identify the most valuable customers.
+
+---
+
+## CLV Query
+
+```sql
+SELECT
+    c.customer_unique_id,
+
+    ROUND(
+        SUM(p.payment_value),
+        2
+    ) AS customer_lifetime_value
+
+FROM customers c
+
+INNER JOIN orders o
+ON c.customer_id = o.customer_id
+
+INNER JOIN payments p
+ON o.order_id = p.order_id
+
+GROUP BY c.customer_unique_id
+
+ORDER BY customer_lifetime_value DESC
+LIMIT 10;
+```
+
+---
+
+## Purpose
+
+- Identify high-revenue customers
+- Measure customer profitability
+- Support strategic marketing decisions
+
+---
+
+# 5. Percentile Analysis
+
+Statistical customer ranking was performed using PERCENT_RANK().
+
+---
+
+## Percentile Query
+
+```sql
+SELECT
+    customer_unique_id,
+
+    total_spent,
+
+    PERCENT_RANK()
+    OVER(
+        ORDER BY total_spent
+    ) AS percentile_rank
+
+FROM (
+
+    SELECT
+        c.customer_unique_id,
+
+        ROUND(SUM(p.payment_value),2)
+        AS total_spent
+
+    FROM customers c
+
+    INNER JOIN orders o
+    ON c.customer_id = o.customer_id
+
+    INNER JOIN payments p
+    ON o.order_id = p.order_id
+
+    GROUP BY c.customer_unique_id
+
+) ranked_customers;
+```
+
+---
+
+## Purpose
+
+- Rank customers statistically
+- Identify top spending percentiles
+- Perform customer distribution analysis
+
+### Business Use Case
+Used in:
+- targeted advertising
+- premium customer identification
+- business segmentation
+
+---
+
+# 6. SQL Views
+
+Views were created to simplify repeated analytical queries.
+
+---
+
+## Create View Query
+
+```sql
+CREATE VIEW customer_rfm_view AS
+
+SELECT
+    c.customer_unique_id,
+
+    COUNT(o.order_id)
+    AS total_orders,
+
+    ROUND(SUM(p.payment_value),2)
+    AS total_spent
+
+FROM customers c
+
+INNER JOIN orders o
+ON c.customer_id = o.customer_id
+
+INNER JOIN payments p
+ON o.order_id = p.order_id
+
+GROUP BY c.customer_unique_id;
+```
+
+---
+
+## Using the View
+
+```sql
+SELECT *
+FROM customer_rfm_view
+LIMIT 20;
+```
+
+---
+
+# Purpose of Views
+
+- Simplify analytics
+- Improve query readability
+- Support dashboard integration
+- Reuse analytical queries efficiently
+
+---
+
+# Advanced SQL Concepts Demonstrated
+
+- Common Table Expressions (CTEs)
+- Window Functions
+- NTILE()
+- PERCENT_RANK()
+- CASE WHEN
+- SQL Views
+- Aggregation
+- Multi-table JOINs
+- Statistical Segmentation
+
+---
+
+# Business Insights Generated
+
+- Identified high-value customers using RFM analysis.
+- Segmented customers into actionable marketing groups.
+- Measured customer profitability using CLV analysis.
+- Performed percentile-based customer ranking.
+- Created reusable SQL views for analytical reporting.
+
+---
+
+# Skills Demonstrated on Day 3
+
+- Advanced SQL Analytics
+- Customer Segmentation
+- Marketing Analytics
+- Business Intelligence
+- Customer Intelligence
+- Window Functions
+- Statistical Analysis
+- CRM Analytics
+- E-Commerce Analytics
+- Data Modeling
+- Analytical Query Engineering
+
+---
+
+# Files Added on Day 3
+
+```text
+queries/
+│
+├── 10_rfm_analysis.sql
+├── 11_customer_segmentation.sql
+├── 12_customer_lifetime_value.sql
+├── 13_percentile_analysis.sql
+└── 14_views.sql
+```
+
+---
+
+# Project Progress After Day 3
+
+## Current Project Level: 10/10+
+
+### Major Improvements Added
+- RFM customer modeling
+- Customer segmentation system
+- Statistical customer ranking
+- CLV analytics
+- Window function implementation
+- Advanced analytical SQL engineering
+
+The project now demonstrates production-level customer analytics and business intelligence workflows commonly used in real-world e-commerce analytics systems.
+
+---
+
+# Conclusion
+
+This phase transformed the project from a standard SQL analytics project into an advanced customer intelligence and segmentation system. By implementing RFM modeling, customer segmentation, statistical ranking, and CLV analysis, the project demonstrates how SQL can be used for large-scale business intelligence and customer analytics in modern e-commerce platforms.
